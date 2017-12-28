@@ -1,0 +1,6 @@
+[package]
+name = "rustytables"
+version = "0.1.0"
+authors = ["dmhacker <dmhacker@yahoo.com>"]
+
+[dependencies]
