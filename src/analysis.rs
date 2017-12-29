@@ -35,3 +35,7 @@ impl<'a> RainbowTable<'a> {
     self
   }
 }
+
+fn find_plaintext(hash : u8, table : RainbowTable) -> Option<&str> {
+  None
+}
