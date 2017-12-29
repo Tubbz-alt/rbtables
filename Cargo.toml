@@ -1,5 +1,5 @@
 [package]
-name = "rustytables"
+name = "rbtables"
 version = "0.1.0"
 authors = ["dmhacker <dmhacker@yahoo.com>"]
 
