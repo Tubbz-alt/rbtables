@@ -30,15 +30,18 @@ impl<'a> RainbowTable<'a> {
         let n = self.chain_tails.len() - 1;
         for reduction_function in &self.reduction_functions {
           let next_value = (reduction_function)((self.hashing_function)(self.chain_tails[n]));
-          let last = &mut self.chain_tails[n];
-          *last = next_value;
+          self.chain_tails[n] = next_value;
         }
       }
     }
     self
   }
 
-  fn find_plaintext(hash : &[u8], table : RainbowTable) -> Option<&'a str> {
+  fn find_plaintext(&'a self, hash : &[u8], table : RainbowTable) -> Option<&'a str> {
+    let rf_len = self.reduction_functions.len();
+    for rfn in (1..rf_len).rev() {
+
+    }
     None
   }
 }
