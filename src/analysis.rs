@@ -1,7 +1,8 @@
 
+use std::collections::HashMap;
+
 pub struct RainbowTable<'a> {
-  chain_heads: Vec<&'a str>,
-  chain_tails: Vec<&'a str>,
+  chains: HashMap<String, String>,
   hashing_function: fn(&str) -> &'a [u8],
   reduction_functions: Vec<fn(&[u8]) -> &'a str>
 }
@@ -10,8 +11,7 @@ impl<'a> RainbowTable<'a> {
 
   fn new(hashing_function : fn(&str) -> &'a [u8], reduction_functions : Vec<fn(&[u8]) -> &'a str>) -> RainbowTable<'a> {
     RainbowTable {
-      chain_heads: Vec::new(),
-      chain_tails: Vec::new(),
+      chains: HashMap::new(),
       hashing_function: hashing_function,
       reduction_functions: reduction_functions
     }
@@ -24,15 +24,11 @@ impl<'a> RainbowTable<'a> {
 
   fn add_seeds(&'a mut self, seeds : &[&'a str]) -> &'a mut RainbowTable {
     for seed in seeds {
-      if !self.chain_heads.contains(seed) {
-        self.chain_heads.push(seed);
-        self.chain_tails.push(seed);
-        let n = self.chain_tails.len() - 1;
-        for reduction_function in &self.reduction_functions {
-          let next_value = (reduction_function)((self.hashing_function)(self.chain_tails[n]));
-          self.chain_tails[n] = next_value;
-        }
+      let mut next_value = seed as &str;
+      for reduction_function in &self.reduction_functions {
+        next_value = (reduction_function)((self.hashing_function)(next_value));
       }
+      self.chains.insert(next_value.to_string(), seed.to_string());
     }
     self
   }
@@ -46,9 +42,8 @@ impl<'a> RainbowTable<'a> {
         current_plaintext = (self.reduction_functions[j])(current_hash);
         current_hash = (self.hashing_function)(current_plaintext);
       }
-      if self.chain_tails.contains(&current_plaintext) {
-        let chain_index = self.chain_tails.iter().position(|&t| t == current_plaintext).unwrap();
-        let mut chain_plaintext = self.chain_heads[chain_index];
+      if self.chains.contains_key(current_plaintext) {
+        let mut chain_plaintext = &self.chains.get(current_plaintext).unwrap()[..];
         let mut chain_hash = (self.hashing_function)(chain_plaintext);
         let mut n = 0;
         while chain_hash != hash {
