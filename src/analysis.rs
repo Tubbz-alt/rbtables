@@ -37,10 +37,28 @@ impl<'a> RainbowTable<'a> {
     self
   }
 
-  fn find_plaintext(&'a self, hash : &[u8], table : RainbowTable) -> Option<&'a str> {
+  fn find_plaintext(&'a self, hash : &[u8]) -> Option<&'a str> {
     let rf_len = self.reduction_functions.len();
-    for rfn in (1..rf_len).rev() {
-
+    let mut current_plaintext = "";
+    let mut current_hash = hash;
+    for i in (0..rf_len).rev() {
+      for j in i..rf_len {
+        current_plaintext = (self.reduction_functions[j])(current_hash);
+        current_hash = (self.hashing_function)(current_plaintext);
+      }
+      if self.chain_tails.contains(&current_plaintext) {
+        let chain_index = self.chain_tails.iter().position(|&t| t == current_plaintext).unwrap();
+        let mut chain_plaintext = self.chain_heads[chain_index];
+        let mut chain_hash = (self.hashing_function)(chain_plaintext);
+        let mut n = 0;
+        while chain_hash != hash {
+          chain_plaintext = (self.reduction_functions[n])(chain_hash);
+          chain_hash = (self.hashing_function)(chain_plaintext);
+          n += 1;
+        }
+        return Some(chain_plaintext);
+      }
+      current_hash = hash;
     }
     None
   }
