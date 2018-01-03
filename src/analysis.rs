@@ -161,3 +161,40 @@ impl<F> RainbowTable<F> where F : Fn(&str) -> &str + Sync {
     self.find_plaintext_multi(hash, cores - 1)
   }
 }
+
+#[cfg(test)]
+mod tests {
+
+    fn md5_hashing_function(plaintext : &str) -> &str {
+
+    }
+
+    fn simple_reduction_function(hash : &str) -> &str {
+
+    }
+
+    fn simple_reduction_function2(hash : &str) -> &str{
+
+    }
+
+    #[test]
+    fn build_rainbow_table() {
+
+    }
+
+    #[test]
+    fn execute_rainbow_table_single() {
+
+    }
+
+    #[test]
+    fn execute_rainbow_table_multi() {
+
+    }
+
+    #[test]
+    fn execute_rainbow_table_system() {
+
+    }
+
+}
