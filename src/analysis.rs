@@ -1,17 +1,20 @@
+extern crate crossbeam;
+extern crate num_cpus;
 
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock, mpsc};
-use std::thread;
 
-pub struct RainbowTable {
+// The generic 'F' can represent either plaintext -> hash OR hash -> plaintext
+// wherein any given hash is in string format.
+pub struct RainbowTable<F> where F : Fn(&str) -> &str + Sync {
   chains: HashMap<String, String>,
-  hashing_function: fn(&str) -> &[u8],
-  reduction_functions: Vec<fn(&[u8]) -> &str>
+  hashing_function: F,
+  reduction_functions: Vec<F>
 }
 
-impl RainbowTable {
+impl<F> RainbowTable<F> where F : Fn(&str) -> &str + Sync {
 
-  fn new(hashing_function : fn(&str) -> &[u8], reduction_functions : Vec<fn(&[u8]) -> &str>) -> RainbowTable {
+  fn new(hashing_function : F, reduction_functions : Vec<F>) -> RainbowTable<F> {
     RainbowTable {
       chains: HashMap::new(),
       hashing_function: hashing_function,
@@ -19,52 +22,68 @@ impl RainbowTable {
     }
   }
 
-  fn add_seed(&mut self, seed : &str) -> &mut RainbowTable {
+  fn add_seed<T: AsRef<str>>(&mut self, seed : T) -> &mut RainbowTable<F> {
     let wrapper = vec![seed];
     self.add_seeds(&wrapper)
   }
 
-  fn add_seeds(&mut self, seeds : &[&str]) -> &mut RainbowTable {
+  fn add_seeds<T: AsRef<str>>(&mut self, seeds : &[T]) -> &mut RainbowTable<F> {
     for seed in seeds {
-      let mut next_value = seed as &str;
+      let mut next_value = seed.as_ref();
       for reduction_function in &self.reduction_functions {
-        next_value = (reduction_function)((self.hashing_function)(next_value));
+        let next_value_hash = (self.hashing_function)(next_value);
+        next_value = (reduction_function)(next_value_hash);
       }
-      self.chains.insert(next_value.to_string(), seed.to_string());
+      self.chains.insert(next_value.to_string(), seed.as_ref().to_string());
     }
     self
   }
 
-  fn find_plaintext(&self, hash : &[u8]) -> Option<&str> {
+  fn find_plaintext_single(&self, hash : &str) -> Option<&str> {
     let rf_len = self.reduction_functions.len();
-    let mut current_plaintext = "";
-    let mut current_hash = hash;
-    for i in (0..rf_len).rev() {
-      for j in i..rf_len {
-        current_plaintext = (self.reduction_functions[j])(current_hash);
-        current_hash = (self.hashing_function)(current_plaintext);
+
+    for current_playback in (0..rf_len).rev() {
+
+      // Apply reduction functions successively starting at the index of current_playback
+      // This will produce some plaintext that could be in the last row of our table
+      let mut reduced_plaintext = "";
+      let mut reduced_hash = hash;
+      for reduction_step in current_playback..rf_len {
+        reduced_plaintext = (self.reduction_functions[reduction_step])(reduced_hash);
+        reduced_hash = (self.hashing_function)(reduced_plaintext);
       }
-      if self.chains.contains_key(current_plaintext) {
-        let mut chain_plaintext = &self.chains.get(current_plaintext).unwrap()[..];
-        let mut chain_hash = (self.hashing_function)(chain_plaintext);
-        let mut n = 0;
-        while chain_hash != hash {
-          chain_plaintext = (self.reduction_functions[n])(chain_hash);
-          chain_hash = (self.hashing_function)(chain_plaintext);
-          n += 1;
+
+      // If the reduced plaintext is in the final column of the table (is a key in our hashmap),
+      // we now know that we have a chain that contains our target plaintext
+      // because earlier we reconstructed a segment of the chain
+      if self.chains.contains_key(reduced_plaintext) {
+
+        // Remember that target_hash will always be the hash of the target plaintext so it is
+        // one step 'ahead' of the target_plaintext in the chain.
+        let mut target_plaintext = &self.chains.get(reduced_plaintext).unwrap()[..];
+        let mut target_hash = (self.hashing_function)(target_plaintext);
+
+        // Recreate the chain and apply each reduction function in order until we reach the
+        // the plaintext that produced our original hash
+        for reduction_step in 0..rf_len {
+          if target_hash == hash {
+            break;
+          }
+          target_plaintext = (self.reduction_functions[reduction_step])(target_hash);
+          target_hash = (self.hashing_function)(target_plaintext);
         }
-        return Some(chain_plaintext);
+
+        // We return the final plaintext
+        return Some(target_plaintext);
       }
-      current_hash = hash;
     }
+
+    // No plaintext for the hash was found in the table
     None
   }
 
-  fn find_plaintext_threaded(&self, hash : &[u8], num_threads : u8) -> Option<&str>  {
+  fn find_plaintext_multi(&self, hash : &str, num_threads : usize) -> Option<&str>  {
     assert!(num_threads > 1);
-
-    let rfs = &self.reduction_functions;
-    let hf = &self.hashing_function;
 
     let rf_len : usize = self.reduction_functions.len();
     let rf_playbacks : Vec<usize> = (0..rf_len).collect();
@@ -73,24 +92,30 @@ impl RainbowTable {
 
     for _ in 0..num_threads {
       let counter = Arc::clone(&counter);
-      let _ = thread::spawn(move || {
-        let current_playback = counter.read().unwrap();
-        while *current_playback < rf_len {
-          /*
-          let mut current_plaintext = "";
-          let mut current_hash = hash;
-          for j in *current_playback..rf_len {
-            current_plaintext = (rfs[j])(current_hash);
-            current_hash = (hf)(current_plaintext);
-          }
-          */
+      crossbeam::scope(|scope| {
+        scope.spawn(|| {
+          let current_playback = counter.read().unwrap();
+          while *current_playback < rf_len {
+            let mut current_plaintext = "";
+            let mut current_hash = hash;
 
-          let mut adjust_playback = counter.write().unwrap();
-          *adjust_playback += 1;
-        }
-      }).join();
+            for j in *current_playback..rf_len {
+              current_plaintext = (self.reduction_functions[j])(current_hash);
+              current_hash = (self.hashing_function)(current_plaintext);
+            }
+
+            let mut adjust_playback = counter.write().unwrap();
+            *adjust_playback += 1;
+          }
+        }).join();
+      });
     }
 
     None
+  }
+
+  fn find_plaintext(&self, hash : &str) -> Option<&str> {
+    let cores = num_cpus::get();
+    self.find_plaintext_multi(hash, cores - 1)
   }
 }
