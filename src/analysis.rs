@@ -86,29 +86,71 @@ impl<F> RainbowTable<F> where F : Fn(&str) -> &str + Sync {
     assert!(num_threads > 1);
 
     let rf_len : usize = self.reduction_functions.len();
-    let rf_playbacks : Vec<usize> = (0..rf_len).collect();
+    // The counter determines at which reduction function the thread will be starting from
     let counter = Arc::new(RwLock::new(0));
-    // let (tx, rx) = mpsc::channel();
+    // The channels are used by the threads to send work results
+    // If the thread sends an empty string as its result, then it has found nothing
+    let (tx, rx) = mpsc::channel();
 
     for _ in 0..num_threads {
+      let tx = mpsc::Sender::clone(&tx);
       let counter = Arc::clone(&counter);
-      crossbeam::scope(|scope| {
-        scope.spawn(|| {
-          let current_playback = counter.read().unwrap();
-          while *current_playback < rf_len {
-            let mut current_plaintext = "";
-            let mut current_hash = hash;
 
-            for j in *current_playback..rf_len {
-              current_plaintext = (self.reduction_functions[j])(current_hash);
-              current_hash = (self.hashing_function)(current_plaintext);
+      // We use crossbeam rather than the native threading library
+      // because crossbeam supports scoped threads that can use their parent's stack values
+      crossbeam::scope(|scope| {
+        scope.spawn(move || {
+          let counter_reader = counter.read().unwrap();
+          let counter_value = *counter_reader;
+          let current_playback = rf_len - counter_value - 1;
+
+          // The inner loop is modified from the fn find_plaintext_simple
+          // except that the results are posted to the channel rather than immediately returned
+          while counter_value < rf_len {
+            let mut reduced_plaintext = "";
+            let mut reduced_hash = hash;
+            for i in current_playback..rf_len {
+              reduced_plaintext = (self.reduction_functions[i])(reduced_hash);
+              reduced_hash = (self.hashing_function)(reduced_plaintext);
+            }
+
+            if self.chains.contains_key(reduced_plaintext) {
+              let mut target_plaintext = &self.chains.get(reduced_plaintext).unwrap()[..];
+              let mut target_hash = (self.hashing_function)(target_plaintext);
+
+              for reduction_step in 0..rf_len {
+                if target_hash == hash {
+                  break;
+                }
+                target_plaintext = (self.reduction_functions[reduction_step])(target_hash);
+                target_hash = (self.hashing_function)(target_plaintext);
+              }
+
+              // Found something, post it to the channel
+              tx.send(target_plaintext).unwrap();
             }
 
             let mut adjust_playback = counter.write().unwrap();
             *adjust_playback += 1;
           }
+
+          // No results found, post empty result to signal that the thread has exited
+          tx.send("").unwrap();
+
         }).join();
       });
+    }
+
+    for _ in 0..num_threads {
+      let work_result = rx.recv().unwrap();
+      if work_result != "" {
+
+        // Try to end threads gracefully by preventing them from processing any future chains
+        let mut end_threads = counter.write().unwrap();
+        *end_threads = rf_len;
+
+        return Some(work_result);
+      }
     }
 
     None
