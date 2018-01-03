@@ -5,8 +5,6 @@ extern crate serde_json;
 use std::collections::HashMap;
 use std::sync::mpsc;
 
-// The generic 'F' can represent either plaintext -> hash OR hash -> plaintext
-// wherein any given hash is in string format.
 pub struct RainbowTable {
   chains: HashMap<String, String>,
   hashing_function: fn(&str) -> String,
@@ -127,9 +125,6 @@ impl RainbowTable {
               }
 
               // Found something, post it to the channel
-              // Keep in mind that we can get false positives in the lookup if the rainbow table either ...
-              //   1. has bad reductions functions
-              //   2. is treated like a hash table, with multiple copies of the same reduction function
               if target_hash == hash {
                 tx.send(target_plaintext).unwrap();
               }
