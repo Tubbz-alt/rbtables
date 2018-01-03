@@ -127,7 +127,7 @@ impl RainbowTable {
           // No results found, post empty result to signal that the thread has exited
           tx.send(String::from("")).unwrap();
 
-        });
+        }).join();
       });
     }
 
@@ -151,6 +151,7 @@ impl RainbowTable {
 mod tests {
 
     extern crate md5;
+
     use analysis::RainbowTable;
 
     fn md5_hashing_function(plaintext : &str) -> String {
@@ -169,7 +170,9 @@ mod tests {
     fn build_rainbow_table() -> RainbowTable {
       let mut rfs : Vec<fn(&str) -> String> = Vec::new();
       rfs.push(simple_reduction_function);
-      rfs.push(simple_reduction_function2);
+      for _ in 0..100 {
+        rfs.push(simple_reduction_function2);
+      }
 
       let seeds = vec!["test", "monster", "test2", "amazing"];
 
