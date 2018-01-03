@@ -90,15 +90,16 @@ impl RainbowTable {
     // If the thread sends an empty string as its result, then it has found nothing
     let (tx, rx) = mpsc::channel();
 
-    for t in 0..num_threads {
-      let job_queue : Vec<usize> = (0..rf_len).filter(|&j| j % num_threads == t).collect();
+    // We use crossbeam rather than the native threading library
+    // because crossbeam supports scoped threads that can use their parent's stack values
+    crossbeam::scope(|scope| {
 
-      let tx = mpsc::Sender::clone(&tx);
+      for t in 0..num_threads {
+        let job_queue : Vec<usize> = (0..rf_len).filter(|&j| j % num_threads == t).rev().collect();
+        let tx = mpsc::Sender::clone(&tx);
 
-      // We use crossbeam rather than the native threading library
-      // because crossbeam supports scoped threads that can use their parent's stack values
-      crossbeam::scope(|scope| {
         scope.spawn(move || {
+
           for current_playback in job_queue {
             let mut reduced_plaintext = String::from("");
             let mut reduced_hash = String::from(hash);
@@ -123,13 +124,12 @@ impl RainbowTable {
               tx.send(target_plaintext).unwrap();
             }
           }
-
           // No results found, post empty result to signal that the thread has exited
           tx.send(String::from("")).unwrap();
 
-        }).join();
-      });
-    }
+        });
+      }
+    });
 
     for _ in 0..num_threads {
       let work_result = rx.recv().unwrap();

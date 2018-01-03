@@ -4,6 +4,7 @@ pub mod structures;
 mod tests {
 
     extern crate md5;
+    extern crate easybench;
 
     use structures::RainbowTable;
 
@@ -23,7 +24,7 @@ mod tests {
     fn build_rainbow_table() -> RainbowTable {
       let mut rfs : Vec<fn(&str) -> String> = Vec::new();
       rfs.push(simple_reduction_function);
-      for _ in 0..100 {
+      for _ in 0..19 {
         rfs.push(simple_reduction_function2);
       }
 
@@ -55,4 +56,12 @@ mod tests {
       assert_eq!(Some(String::from("8bf4e")), table.find_plaintext("18b11cf86b4a3fd75e3fd9ac3485bdb6"));
     }
 
+    #[test]
+    fn easybench_test() {
+      let table = build_rainbow_table();
+      println!("find_plaintext_single: {}", easybench::bench(|| table.find_plaintext_single("18b11cf86b4a3fd75e3fd9ac3485bdb6") ));
+      println!("find_plaintext_multi 2: {}", easybench::bench(|| table.find_plaintext_multi("18b11cf86b4a3fd75e3fd9ac3485bdb6", 2) ));
+      println!("find_plaintext_multi system: {}", easybench::bench(|| table.find_plaintext("18b11cf86b4a3fd75e3fd9ac3485bdb6") ));
+    }
 }
+
