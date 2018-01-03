@@ -14,7 +14,7 @@ pub struct RainbowTable {
 
 impl RainbowTable {
 
-  fn new(hashing_function : fn(&str) -> String, reduction_functions : Vec<fn(&str) -> String>) -> RainbowTable {
+  pub fn new(hashing_function : fn(&str) -> String, reduction_functions : Vec<fn(&str) -> String>) -> RainbowTable {
     RainbowTable {
       chains: HashMap::new(),
       hashing_function: hashing_function,
@@ -22,12 +22,12 @@ impl RainbowTable {
     }
   }
 
-  fn add_seed<T: AsRef<str>>(&mut self, seed : T) -> &mut RainbowTable {
+  pub fn add_seed<T: AsRef<str>>(&mut self, seed : T) -> &mut RainbowTable {
     let wrapper = vec![seed];
     self.add_seeds(&wrapper)
   }
 
-  fn add_seeds<T: AsRef<str>>(&mut self, seeds : &[T]) -> &mut RainbowTable {
+  pub fn add_seeds<T: AsRef<str>>(&mut self, seeds : &[T]) -> &mut RainbowTable {
     for seed in seeds {
       let mut next_value = String::from(seed.as_ref());
       for reduction_function in &self.reduction_functions {
@@ -39,7 +39,7 @@ impl RainbowTable {
     self
   }
 
-  fn find_plaintext_single(&self, hash : &str) -> Option<String> {
+  pub fn find_plaintext_single(&self, hash : &str) -> Option<String> {
     let rf_len = self.reduction_functions.len();
 
     for current_playback in (0..rf_len).rev() {
@@ -82,7 +82,7 @@ impl RainbowTable {
     None
   }
 
-  fn find_plaintext_multi(&self, hash : &str, num_threads : usize) -> Option<String>  {
+  pub fn find_plaintext_multi(&self, hash : &str, num_threads : usize) -> Option<String>  {
     assert!(num_threads > 1);
 
     let rf_len : usize = self.reduction_functions.len();
@@ -141,65 +141,8 @@ impl RainbowTable {
     None
   }
 
-  fn find_plaintext(&self, hash : &str) -> Option<String> {
+  pub fn find_plaintext(&self, hash : &str) -> Option<String> {
     let cores = num_cpus::get();
     self.find_plaintext_multi(hash, cores - 1)
   }
-}
-
-#[cfg(test)]
-mod tests {
-
-    extern crate md5;
-
-    use analysis::RainbowTable;
-
-    fn md5_hashing_function(plaintext : &str) -> String {
-      let digest = md5::compute(plaintext.as_bytes());
-      format!("{:x}", digest)
-    }
-
-    fn simple_reduction_function(hash : &str) -> String {
-      String::from(&hash[..5])
-    }
-
-    fn simple_reduction_function2(hash : &str) -> String {
-      String::from(&hash[..6])
-    }
-
-    fn build_rainbow_table() -> RainbowTable {
-      let mut rfs : Vec<fn(&str) -> String> = Vec::new();
-      rfs.push(simple_reduction_function);
-      for _ in 0..100 {
-        rfs.push(simple_reduction_function2);
-      }
-
-      let seeds = vec!["test", "monster", "test2", "amazing"];
-
-      let mut table : RainbowTable = RainbowTable::new(md5_hashing_function, rfs);
-      table.add_seeds(&seeds);
-      table
-    }
-
-    #[test]
-    fn execute_rainbow_table_single() {
-      let table = build_rainbow_table();
-      assert_eq!(Some(String::from("monster")), table.find_plaintext_single("8bf4e6addd72a9c4c4714708d2941528"));
-      assert_eq!(Some(String::from("8bf4e")), table.find_plaintext_single("18b11cf86b4a3fd75e3fd9ac3485bdb6"));
-    }
-
-    #[test]
-    fn execute_rainbow_table_multi() {
-      let table = build_rainbow_table();
-      assert_eq!(Some(String::from("monster")), table.find_plaintext_multi("8bf4e6addd72a9c4c4714708d2941528", 2));
-      assert_eq!(Some(String::from("8bf4e")), table.find_plaintext_multi("18b11cf86b4a3fd75e3fd9ac3485bdb6", 2));
-    }
-
-    #[test]
-    fn execute_rainbow_table_system() {
-      let table = build_rainbow_table();
-      assert_eq!(Some(String::from("monster")), table.find_plaintext("8bf4e6addd72a9c4c4714708d2941528"));
-      assert_eq!(Some(String::from("8bf4e")), table.find_plaintext("18b11cf86b4a3fd75e3fd9ac3485bdb6"));
-    }
-
 }
