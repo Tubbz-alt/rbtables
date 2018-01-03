@@ -6,3 +6,4 @@ authors = ["dmhacker <dmhacker@yahoo.com>"]
 [dependencies]
 crossbeam = "0.3.0"
 num_cpus = "1.0"
+md5 = "0.3.6"

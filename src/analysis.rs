@@ -2,19 +2,19 @@ extern crate crossbeam;
 extern crate num_cpus;
 
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock, mpsc};
+use std::sync::mpsc;
 
 // The generic 'F' can represent either plaintext -> hash OR hash -> plaintext
 // wherein any given hash is in string format.
-pub struct RainbowTable<F> where F : Fn(&str) -> &str + Sync {
+pub struct RainbowTable {
   chains: HashMap<String, String>,
-  hashing_function: F,
-  reduction_functions: Vec<F>
+  hashing_function: fn(&str) -> String,
+  reduction_functions: Vec<fn(&str) -> String>
 }
 
-impl<F> RainbowTable<F> where F : Fn(&str) -> &str + Sync {
+impl RainbowTable {
 
-  fn new(hashing_function : F, reduction_functions : Vec<F>) -> RainbowTable<F> {
+  fn new(hashing_function : fn(&str) -> String, reduction_functions : Vec<fn(&str) -> String>) -> RainbowTable {
     RainbowTable {
       chains: HashMap::new(),
       hashing_function: hashing_function,
@@ -22,46 +22,46 @@ impl<F> RainbowTable<F> where F : Fn(&str) -> &str + Sync {
     }
   }
 
-  fn add_seed<T: AsRef<str>>(&mut self, seed : T) -> &mut RainbowTable<F> {
+  fn add_seed<T: AsRef<str>>(&mut self, seed : T) -> &mut RainbowTable {
     let wrapper = vec![seed];
     self.add_seeds(&wrapper)
   }
 
-  fn add_seeds<T: AsRef<str>>(&mut self, seeds : &[T]) -> &mut RainbowTable<F> {
+  fn add_seeds<T: AsRef<str>>(&mut self, seeds : &[T]) -> &mut RainbowTable {
     for seed in seeds {
-      let mut next_value = seed.as_ref();
+      let mut next_value = String::from(seed.as_ref());
       for reduction_function in &self.reduction_functions {
-        let next_value_hash = (self.hashing_function)(next_value);
-        next_value = (reduction_function)(next_value_hash);
+        let next_value_hash = (self.hashing_function)(&next_value[..]);
+        next_value = (reduction_function)(&next_value_hash[..]);
       }
-      self.chains.insert(next_value.to_string(), seed.as_ref().to_string());
+      self.chains.insert(next_value, String::from(seed.as_ref()));
     }
     self
   }
 
-  fn find_plaintext_single(&self, hash : &str) -> Option<&str> {
+  fn find_plaintext_single(&self, hash : &str) -> Option<String> {
     let rf_len = self.reduction_functions.len();
 
     for current_playback in (0..rf_len).rev() {
 
       // Apply reduction functions successively starting at the index of current_playback
       // This will produce some plaintext that could be in the last row of our table
-      let mut reduced_plaintext = "";
-      let mut reduced_hash = hash;
+      let mut reduced_plaintext = String::from("");
+      let mut reduced_hash = String::from(hash);
       for reduction_step in current_playback..rf_len {
-        reduced_plaintext = (self.reduction_functions[reduction_step])(reduced_hash);
-        reduced_hash = (self.hashing_function)(reduced_plaintext);
+        reduced_plaintext = (self.reduction_functions[reduction_step])(&reduced_hash[..]);
+        reduced_hash = (self.hashing_function)(&reduced_plaintext[..]);
       }
 
       // If the reduced plaintext is in the final column of the table (is a key in our hashmap),
       // we now know that we have a chain that contains our target plaintext
       // because earlier we reconstructed a segment of the chain
-      if self.chains.contains_key(reduced_plaintext) {
+      if self.chains.contains_key(&reduced_plaintext) {
 
         // Remember that target_hash will always be the hash of the target plaintext so it is
         // one step 'ahead' of the target_plaintext in the chain.
-        let mut target_plaintext = &self.chains.get(reduced_plaintext).unwrap()[..];
-        let mut target_hash = (self.hashing_function)(target_plaintext);
+        let mut target_plaintext = String::from(&self.chains.get(&reduced_plaintext).unwrap()[..]);
+        let mut target_hash = (self.hashing_function)(&target_plaintext[..]);
 
         // Recreate the chain and apply each reduction function in order until we reach the
         // the plaintext that produced our original hash
@@ -69,8 +69,8 @@ impl<F> RainbowTable<F> where F : Fn(&str) -> &str + Sync {
           if target_hash == hash {
             break;
           }
-          target_plaintext = (self.reduction_functions[reduction_step])(target_hash);
-          target_hash = (self.hashing_function)(target_plaintext);
+          target_plaintext = (self.reduction_functions[reduction_step])(&target_hash[..]);
+          target_hash = (self.hashing_function)(&target_plaintext[..]);
         }
 
         // We return the final plaintext
@@ -82,73 +82,58 @@ impl<F> RainbowTable<F> where F : Fn(&str) -> &str + Sync {
     None
   }
 
-  fn find_plaintext_multi(&self, hash : &str, num_threads : usize) -> Option<&str>  {
+  fn find_plaintext_multi(&self, hash : &str, num_threads : usize) -> Option<String>  {
     assert!(num_threads > 1);
 
     let rf_len : usize = self.reduction_functions.len();
-    // The counter determines at which reduction function the thread will be starting from
-    let counter = Arc::new(RwLock::new(0));
     // The channels are used by the threads to send work results
     // If the thread sends an empty string as its result, then it has found nothing
     let (tx, rx) = mpsc::channel();
 
-    for _ in 0..num_threads {
+    for t in 0..num_threads {
+      let job_queue : Vec<usize> = (0..rf_len).filter(|&j| j % num_threads == t).collect();
+
       let tx = mpsc::Sender::clone(&tx);
-      let counter = Arc::clone(&counter);
 
       // We use crossbeam rather than the native threading library
       // because crossbeam supports scoped threads that can use their parent's stack values
       crossbeam::scope(|scope| {
         scope.spawn(move || {
-          let counter_reader = counter.read().unwrap();
-          let counter_value = *counter_reader;
-          let current_playback = rf_len - counter_value - 1;
-
-          // The inner loop is modified from the fn find_plaintext_simple
-          // except that the results are posted to the channel rather than immediately returned
-          while counter_value < rf_len {
-            let mut reduced_plaintext = "";
-            let mut reduced_hash = hash;
+          for current_playback in job_queue {
+            let mut reduced_plaintext = String::from("");
+            let mut reduced_hash = String::from(hash);
             for i in current_playback..rf_len {
-              reduced_plaintext = (self.reduction_functions[i])(reduced_hash);
-              reduced_hash = (self.hashing_function)(reduced_plaintext);
+              reduced_plaintext = (self.reduction_functions[i])(&reduced_hash[..]);
+              reduced_hash = (self.hashing_function)(&reduced_plaintext[..]);
             }
 
-            if self.chains.contains_key(reduced_plaintext) {
-              let mut target_plaintext = &self.chains.get(reduced_plaintext).unwrap()[..];
-              let mut target_hash = (self.hashing_function)(target_plaintext);
+            if self.chains.contains_key(&reduced_plaintext) {
+              let mut target_plaintext = String::from(&self.chains.get(&reduced_plaintext).unwrap()[..]);
+              let mut target_hash = (self.hashing_function)(&target_plaintext[..]);
 
               for reduction_step in 0..rf_len {
                 if target_hash == hash {
                   break;
                 }
-                target_plaintext = (self.reduction_functions[reduction_step])(target_hash);
-                target_hash = (self.hashing_function)(target_plaintext);
+                target_plaintext = (self.reduction_functions[reduction_step])(&target_hash[..]);
+                target_hash = (self.hashing_function)(&target_plaintext[..]);
               }
 
               // Found something, post it to the channel
               tx.send(target_plaintext).unwrap();
             }
-
-            let mut adjust_playback = counter.write().unwrap();
-            *adjust_playback += 1;
           }
 
           // No results found, post empty result to signal that the thread has exited
-          tx.send("").unwrap();
+          tx.send(String::from("")).unwrap();
 
-        }).join();
+        });
       });
     }
 
     for _ in 0..num_threads {
       let work_result = rx.recv().unwrap();
       if work_result != "" {
-
-        // Try to end threads gracefully by preventing them from processing any future chains
-        let mut end_threads = counter.write().unwrap();
-        *end_threads = rf_len;
-
         return Some(work_result);
       }
     }
@@ -156,7 +141,7 @@ impl<F> RainbowTable<F> where F : Fn(&str) -> &str + Sync {
     None
   }
 
-  fn find_plaintext(&self, hash : &str) -> Option<&str> {
+  fn find_plaintext(&self, hash : &str) -> Option<String> {
     let cores = num_cpus::get();
     self.find_plaintext_multi(hash, cores - 1)
   }
@@ -165,36 +150,53 @@ impl<F> RainbowTable<F> where F : Fn(&str) -> &str + Sync {
 #[cfg(test)]
 mod tests {
 
-    fn md5_hashing_function(plaintext : &str) -> &str {
+    extern crate md5;
+    use analysis::RainbowTable;
 
+    fn md5_hashing_function(plaintext : &str) -> String {
+      let digest = md5::compute(plaintext.as_bytes());
+      format!("{:x}", digest)
     }
 
-    fn simple_reduction_function(hash : &str) -> &str {
-
+    fn simple_reduction_function(hash : &str) -> String {
+      String::from(&hash[..5])
     }
 
-    fn simple_reduction_function2(hash : &str) -> &str{
-
+    fn simple_reduction_function2(hash : &str) -> String {
+      String::from(&hash[..6])
     }
 
-    #[test]
-    fn build_rainbow_table() {
+    fn build_rainbow_table() -> RainbowTable {
+      let mut rfs : Vec<fn(&str) -> String> = Vec::new();
+      rfs.push(simple_reduction_function);
+      rfs.push(simple_reduction_function2);
 
+      let seeds = vec!["test", "monster", "test2", "amazing"];
+
+      let mut table : RainbowTable = RainbowTable::new(md5_hashing_function, rfs);
+      table.add_seeds(&seeds);
+      table
     }
 
     #[test]
     fn execute_rainbow_table_single() {
-
+      let table = build_rainbow_table();
+      assert_eq!(Some(String::from("monster")), table.find_plaintext_single("8bf4e6addd72a9c4c4714708d2941528"));
+      assert_eq!(Some(String::from("8bf4e")), table.find_plaintext_single("18b11cf86b4a3fd75e3fd9ac3485bdb6"));
     }
 
     #[test]
     fn execute_rainbow_table_multi() {
-
+      let table = build_rainbow_table();
+      assert_eq!(Some(String::from("monster")), table.find_plaintext_multi("8bf4e6addd72a9c4c4714708d2941528", 2));
+      assert_eq!(Some(String::from("8bf4e")), table.find_plaintext_multi("18b11cf86b4a3fd75e3fd9ac3485bdb6", 2));
     }
 
     #[test]
     fn execute_rainbow_table_system() {
-
+      let table = build_rainbow_table();
+      assert_eq!(Some(String::from("monster")), table.find_plaintext("8bf4e6addd72a9c4c4714708d2941528"));
+      assert_eq!(Some(String::from("8bf4e")), table.find_plaintext("18b11cf86b4a3fd75e3fd9ac3485bdb6"));
     }
 
 }
