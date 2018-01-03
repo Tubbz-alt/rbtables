@@ -1,5 +1,6 @@
 extern crate crossbeam;
 extern crate num_cpus;
+extern crate serde_json;
 
 use std::collections::HashMap;
 use std::sync::mpsc;
@@ -74,7 +75,12 @@ impl RainbowTable {
         }
 
         // We return the final plaintext
-        return Some(target_plaintext);
+        // Keep in mind that we can get false positives in the lookup if the rainbow table either ...
+        //   1. has bad reductions functions
+        //   2. is treated like a hash table, with multiple copies of the same reduction function
+        if target_hash == hash {
+          return Some(target_plaintext);
+        }
       }
     }
 
@@ -121,7 +127,12 @@ impl RainbowTable {
               }
 
               // Found something, post it to the channel
-              tx.send(target_plaintext).unwrap();
+              // Keep in mind that we can get false positives in the lookup if the rainbow table either ...
+              //   1. has bad reductions functions
+              //   2. is treated like a hash table, with multiple copies of the same reduction function
+              if target_hash == hash {
+                tx.send(target_plaintext).unwrap();
+              }
             }
           }
           // No results found, post empty result to signal that the thread has exited
@@ -142,7 +153,10 @@ impl RainbowTable {
   }
 
   pub fn find_plaintext(&self, hash : &str) -> Option<String> {
-    let cores = num_cpus::get();
-    self.find_plaintext_multi(hash, cores - 1)
+    self.find_plaintext_multi(hash, num_cpus::get())
+  }
+
+  pub fn to_json_string(&self) -> String {
+    serde_json::to_string(&self.chains).ok().unwrap()
   }
 }
