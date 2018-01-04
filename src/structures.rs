@@ -142,6 +142,7 @@ impl<H, R> RainbowTable<H, R> where H : Hasher, R : Reducer {
               }
             }
           }
+
           // No results found, post empty result to signal that the thread has exited
           tx.send(String::from("")).unwrap();
 
@@ -151,6 +152,7 @@ impl<H, R> RainbowTable<H, R> where H : Hasher, R : Reducer {
 
     for _ in 0..num_threads {
       let work_result = rx.recv().unwrap();
+      // If we receive a non-empty work result, end child threads early by returning
       if work_result != "" {
         return Some(work_result);
       }
