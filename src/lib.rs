@@ -8,32 +8,62 @@ mod tests {
   extern crate num_cpus;
 
   use structures::RainbowTable;
+  use structures::Hasher;
+  use structures::Reducer;
 
-  fn md5_hashing_function(plaintext : &str) -> String {
-    let digest = md5::compute(plaintext.as_bytes());
-    format!("{:x}", digest)
-  }
+  // Represents a hasher that performs the md5 digest
+  struct Md5Hasher;
 
-  fn simple_reduction_function(hash : &str) -> String {
-    String::from(&hash[..5])
-  }
+  impl Md5Hasher {
 
-  fn simple_reduction_function2(hash : &str) -> String {
-    String::from(&hash[..6])
-  }
-
-  fn build_rainbow_table() -> RainbowTable {
-    let mut rfs : Vec<fn(&str) -> String> = Vec::new();
-    rfs.push(simple_reduction_function);
-    for _ in 0..99 {
-      rfs.push(simple_reduction_function2);
+    fn new() -> Md5Hasher {
+      Md5Hasher
     }
 
-    let seeds = vec!["test", "monster", "test2", "amazing"];
+  }
 
-    let mut table : RainbowTable = RainbowTable::new(md5_hashing_function, rfs);
-    table.add_seeds(&seeds);
-    for i in 0..100 {
+  impl Hasher for Md5Hasher {
+
+    fn digest(&self, plaintext : &str) -> String {
+      let digest = md5::compute(plaintext.as_bytes());
+      format!("{:x}", digest)
+    }
+
+  }
+
+  // Represents a reducer that simply takes the first n characters of a hash to reduce it
+  struct SubstringReducer {
+    n: usize
+  }
+
+  impl SubstringReducer {
+
+    fn new(n : usize) -> SubstringReducer {
+      SubstringReducer {
+        n: n
+      }
+    }
+
+  }
+
+  impl Reducer for SubstringReducer {
+
+    fn reduce(&self, hash : &str) -> String {
+      String::from(&hash[..self.n])
+    }
+
+  }
+
+  fn build_sample_rainbow_table() -> RainbowTable<Md5Hasher, SubstringReducer> {
+    let mut rfs : Vec<SubstringReducer> = Vec::new();
+    rfs.push(SubstringReducer::new(5));
+    for _ in 0..99 {
+      rfs.push(SubstringReducer::new(6));
+    }
+
+    let mut table : RainbowTable<Md5Hasher, SubstringReducer> = RainbowTable::new(Md5Hasher::new(), rfs);
+    table.add_seed("monster");
+    for i in 0..999 {
       let seed = format!("{}", i);
       table.add_seed(seed);
     }
@@ -43,7 +73,7 @@ mod tests {
 
   #[test]
   fn execute_rainbow_table_single() {
-    let table = build_rainbow_table();
+    let table = build_sample_rainbow_table();
     assert_eq!(Some(String::from("monster")), table.find_plaintext_single("8bf4e6addd72a9c4c4714708d2941528"));
     assert_eq!(Some(String::from("8bf4e")), table.find_plaintext_single("18b11cf86b4a3fd75e3fd9ac3485bdb6"));
     println!("CORES=1 {}", easybench::bench(|| table.find_plaintext_single("8bf4e6addd72a9c4c4714708d2941528") ));
@@ -51,7 +81,7 @@ mod tests {
 
   #[test]
   fn execute_rainbow_table_multi() {
-    let table = build_rainbow_table();
+    let table = build_sample_rainbow_table();
     assert_eq!(Some(String::from("monster")), table.find_plaintext_multi("8bf4e6addd72a9c4c4714708d2941528", 2));
     assert_eq!(Some(String::from("8bf4e")), table.find_plaintext_multi("18b11cf86b4a3fd75e3fd9ac3485bdb6", 2));
     println!("CORES=2 {}", easybench::bench(|| table.find_plaintext_multi("8bf4e6addd72a9c4c4714708d2941528", 2) ));
@@ -59,10 +89,10 @@ mod tests {
 
   #[test]
   fn execute_rainbow_table_system() {
-    let table = build_rainbow_table();
+    let table = build_sample_rainbow_table();
     assert_eq!(Some(String::from("monster")), table.find_plaintext("8bf4e6addd72a9c4c4714708d2941528"));
     assert_eq!(Some(String::from("8bf4e")), table.find_plaintext("18b11cf86b4a3fd75e3fd9ac3485bdb6"));
-    println!("CORES={} {}", num_cpus::get() - 1, easybench::bench(|| table.find_plaintext("8bf4e6addd72a9c4c4714708d2941528") ));
+    println!("CORES={} {}", num_cpus::get(), easybench::bench(|| table.find_plaintext("8bf4e6addd72a9c4c4714708d2941528") ));
   }
 }
 
