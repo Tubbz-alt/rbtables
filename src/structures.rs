@@ -33,6 +33,13 @@ impl<H, R> RainbowTable<H, R> where H : Hasher, R : Reducer {
     }
   }
 
+  pub fn reconstruct(&mut self, old_chains : &HashMap<String, String>) -> &mut RainbowTable<H, R> {
+    for (key, value) in old_chains {
+      self.chains.insert(key.to_owned(), value.to_owned());
+    }
+    self
+  }
+
   pub fn add_seed<T: AsRef<str>>(&mut self, seed : T) -> &mut RainbowTable<H, R> {
     let wrapper = vec![seed];
     self.add_seeds(&wrapper)

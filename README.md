@@ -1,3 +1,3 @@
 # rbtables
 
-This is a fast, parallel implementation of [rainbow tables](https://en.wikipedia.org/wiki/Rainbow_table) in Rust. It is fully configurable: hashing and reduction functions, chain serialization formats, number of threads, and so forth must be specified by the user.
+_rbtables_ is a fast, parallel implementation of [rainbow tables](https://en.wikipedia.org/wiki/Rainbow_table) in Rust. It is intended as an API, supporting general use cases of rainbow tables. The user will need to supply hashing and reduction functions. Chains can be outputted and stored using JSON.
