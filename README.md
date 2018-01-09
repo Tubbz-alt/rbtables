@@ -8,7 +8,7 @@ Begin by implementing the `Hasher` trait which contains a single function `diges
 
 In `lib.rs`, you can see an example of this:
 
-```
+```rust
 // Represents a hasher that performs the md5 digest
 struct MD5Hasher;
 
@@ -34,7 +34,7 @@ Next, implement a set of reduction function(s). To do this, start by implementin
 
 In `lib.rs`, you can see an example of this:
 
-```
+```rust
 // Represents a reducer that simply takes the first n characters of a hash to reduce it
 struct SubstringReducer {
   n: usize
