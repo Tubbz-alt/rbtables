@@ -50,7 +50,7 @@ impl<H, R> RainbowTable<H, R> where H : Hasher, R : Reducer {
     self
   }
 
-  pub fn find_plaintext_single(&self, hash : &str) -> Option<String> {
+  fn _find_plaintext_single(&self, hash : &str) -> Option<String> {
     let rf_len = self.reducers.len();
 
     for current_playback in (0..rf_len).rev() {
@@ -98,7 +98,7 @@ impl<H, R> RainbowTable<H, R> where H : Hasher, R : Reducer {
     None
   }
 
-  pub fn find_plaintext_multi(&self, hash : &str, num_threads : usize) -> Option<String>  {
+  fn _find_plaintext_multi(&self, hash : &str, num_threads : usize) -> Option<String>  {
     assert!(num_threads > 1);
 
     let rf_len : usize = self.reducers.len();
@@ -162,7 +162,7 @@ impl<H, R> RainbowTable<H, R> where H : Hasher, R : Reducer {
   }
 
   pub fn find_plaintext(&self, hash : &str) -> Option<String> {
-    self.find_plaintext_multi(hash, num_cpus::get())
+    self._find_plaintext_multi(hash, num_cpus::get())
   }
 
   pub fn to_json_string(&self) -> String {
