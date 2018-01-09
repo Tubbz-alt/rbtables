@@ -11,17 +11,17 @@ mod tests {
   use structures::Reducer;
 
   // Represents a hasher that performs the md5 digest
-  struct Md5Hasher;
+  struct MD5Hasher;
 
-  impl Md5Hasher {
+  impl MD5Hasher {
 
-    fn new() -> Md5Hasher {
-      Md5Hasher
+    fn new() -> MD5Hasher {
+      MD5Hasher
     }
 
   }
 
-  impl Hasher for Md5Hasher {
+  impl Hasher for MD5Hasher {
 
     fn digest(&self, plaintext : &str) -> String {
       let digest = md5::compute(plaintext.as_bytes());
@@ -53,13 +53,13 @@ mod tests {
 
   }
 
-  fn build_sample_rainbow_table() -> RainbowTable<Md5Hasher, SubstringReducer> {
+  fn build_sample_rainbow_table() -> RainbowTable<MD5Hasher, SubstringReducer> {
     let mut rfs : Vec<SubstringReducer> = Vec::new();
     for i in 6..27 {
       rfs.push(SubstringReducer::new(i));
     }
 
-    let mut table : RainbowTable<Md5Hasher, SubstringReducer> = RainbowTable::new(Md5Hasher::new(), rfs);
+    let mut table : RainbowTable<MD5Hasher, SubstringReducer> = RainbowTable::new(MD5Hasher::new(), rfs);
     table.add_seed("monster");
     for i in 0..999 {
       let seed = format!("{}", i);
