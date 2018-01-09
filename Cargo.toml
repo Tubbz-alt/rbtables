@@ -2,6 +2,8 @@
 name = "rbtables"
 version = "0.1.1"
 authors = ["dmhacker <dmhacker@yahoo.com>"]
+description = "Fast, parallel implementation of rainbow tables"
+license = "MIT"
 
 [dependencies]
 crossbeam = "0.3.0"
