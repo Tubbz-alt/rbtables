@@ -43,4 +43,4 @@ impl Reducer for SubstringReducer {
 After that, you can build a rainbow table by supplying the hasher and a vector of reduction functions. 
 The rainbow table will need to be supplied with seed values, which will determine the effectiveness of your table along with the reduction functions. 
 
-See the crates.io documentation for additional information.
+See the [crates.io documentation](https://docs.rs/rbtables) for additional information.
