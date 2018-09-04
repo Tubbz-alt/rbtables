@@ -1,7 +1,5 @@
-extern crate crossbeam;
-extern crate num_cpus;
-extern crate serde_json;
-
+use crossbeam;
+use num_cpus;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, mpsc};
 
@@ -28,7 +26,11 @@ impl<H, R> RainbowTable<H, R> where H : Hasher, R : Reducer {
         }
     }
 
-    pub fn reconstruct(&mut self, old_chains : &HashMap<String, String>) -> &mut RainbowTable<H, R> {
+    pub fn get_chains(&self) -> HashMap<String, String> {
+        return self.chains.clone(); 
+    }
+
+    pub fn from_chains(&mut self, old_chains : &HashMap<String, String>) -> &mut RainbowTable<H, R> {
         for (key, value) in old_chains {
             self.chains.insert(key.to_owned(), value.to_owned());
         }
@@ -186,9 +188,5 @@ impl<H, R> RainbowTable<H, R> where H : Hasher, R : Reducer {
 
     pub fn find_plaintext(&self, hash : &str) -> Option<String> {
         self._find_plaintext_multi(hash, num_cpus::get())
-    }
-
-    pub fn to_json_string(&self) -> String {
-        serde_json::to_string(&self.chains).ok().unwrap()
     }
 }

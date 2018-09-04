@@ -1,3 +1,5 @@
+extern crate crossbeam;
+extern crate num_cpus;
 #[macro_use]
 extern crate lazy_static;
 
