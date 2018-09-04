@@ -1,12 +1,15 @@
 [package]
 name = "rbtables"
-version = "0.1.1"
-authors = ["dmhacker <dmhacker@yahoo.com>"]
-description = "Fast, parallel implementation of rainbow tables"
+version = "0.1.2"
+authors = ["dmhacker <dmhacker@protonmail.com>"]
+description = "Fast & extensible rainbow tables implementation"
 license = "MIT"
 
 [dependencies]
 crossbeam = "0.3.0"
 num_cpus = "1.0"
 serde_json = "1.0"
+lazy_static = "1.1.0"
+
+[dev-dependencies]
 md5 = "0.3.6"

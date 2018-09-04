@@ -1,79 +1,74 @@
 pub mod structures;
 
+#[macro_use]
+extern crate lazy_static;
+
 #[cfg(test)]
 mod tests {
+    extern crate md5;
 
-  extern crate md5;
-  extern crate num_cpus;
+    use structures::RainbowTable;
+    use structures::Hasher;
+    use structures::Reducer;
 
-  use structures::RainbowTable;
-  use structures::Hasher;
-  use structures::Reducer;
-
-  // Represents a hasher that performs the md5 digest
-  struct MD5Hasher;
-
-  impl MD5Hasher {
-
-    fn new() -> MD5Hasher {
-      MD5Hasher
+    // This hasher performs an MD5 digest
+    struct MD5Hasher;
+    impl Hasher for MD5Hasher {
+        fn digest(&self, plaintext : &str) -> String {
+            format!("{:x}", md5::compute(plaintext.as_bytes()))
+        }
     }
 
-  }
-
-  impl Hasher for MD5Hasher {
-
-    fn digest(&self, plaintext : &str) -> String {
-      let digest = md5::compute(plaintext.as_bytes());
-      format!("{:x}", digest)
+    // This reducer simply takes the first n characters of a hash 
+    struct SubstringReducer {
+        n: usize
+    }
+    impl Reducer for SubstringReducer {
+        fn reduce(&self, hash : &str) -> String {
+            String::from(&hash[..self.n])
+        }
     }
 
-  }
+    lazy_static! {
+        static ref TABLE : RainbowTable<MD5Hasher, SubstringReducer> = {
+            // Build a list of substring reducers, each of which will be applied in succession 
+            let mut rfs : Vec<SubstringReducer> = Vec::new();
+            for i in 6..27 {
+                rfs.push(SubstringReducer { n : i });
+            }
 
-  // Represents a reducer that simply takes the first n characters of a hash to reduce it
-  struct SubstringReducer {
-    n: usize
-  }
+            // Create the table using an MD5 hasher and the list of substring reducers
+            let mut table : RainbowTable<MD5Hasher, SubstringReducer> = RainbowTable::new(MD5Hasher, rfs);
 
-  impl SubstringReducer {
+            // Add numbers in [0, 999] as test seeds 
+            for i in 0..1000 {
+                table.add_seed(format!("{}", i));
+            }
 
-    fn new(n : usize) -> SubstringReducer {
-      SubstringReducer {
-        n: n
-      }
+            table
+        };
     }
 
-  }
-
-  impl Reducer for SubstringReducer {
-
-    fn reduce(&self, hash : &str) -> String {
-      String::from(&hash[..self.n])
+    #[test]
+    fn test_rainbow_table_find_seeds() {
+        // Test that the rainbow table can find the hashes of the seed values
+        for i in 0..1000 {
+            let seed = format!("{}", i);
+            let seed_hash = format!("{:x}", md5::compute(seed.as_bytes()));
+            assert_eq!(Some(seed), TABLE.find_plaintext(&seed_hash));
+        }
     }
 
-  }
-
-  fn build_sample_rainbow_table() -> RainbowTable<MD5Hasher, SubstringReducer> {
-    let mut rfs : Vec<SubstringReducer> = Vec::new();
-    for i in 6..27 {
-      rfs.push(SubstringReducer::new(i));
+    #[test]
+    fn test_rainbow_table_find_random() {
+        // Test that the rainbow table can find hashes that appear randomly in the table
+        
     }
 
-    let mut table : RainbowTable<MD5Hasher, SubstringReducer> = RainbowTable::new(MD5Hasher::new(), rfs);
-    table.add_seed("monster");
-    for i in 0..999 {
-      let seed = format!("{}", i);
-      table.add_seed(seed);
+    #[test]
+    fn test_rainbow_table_find_none() {
+        // Test that the table will return None when presented with a hash not in the table 
+        assert_eq!(None, TABLE.find_plaintext("8a1fb399dcf220db935995abce6a1532"));
     }
-
-    table
-  }
-
-  #[test]
-  fn execute_rainbow_table_system() {
-    let table = build_sample_rainbow_table();
-    assert_eq!(Some(String::from("monster")), table.find_plaintext("8bf4e6addd72a9c4c4714708d2941528"));
-    assert_eq!(Some(String::from("8bf4e6")), table.find_plaintext("8a1fb399dcf220db935995abce6a1532"));
-  }
 }
 
