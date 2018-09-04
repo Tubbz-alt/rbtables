@@ -1,6 +1,6 @@
 [package]
 name = "rbtables"
-version = "0.1.3"
+version = "0.1.4"
 authors = ["dmhacker <dmhacker@protonmail.com>"]
 description = "Fast & extensible rainbow tables implementation"
 readme = "README.md"
