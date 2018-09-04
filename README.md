@@ -7,8 +7,8 @@ The user will need to supply hashing and reduction functions.
 ## Usage
 
 Begin by implementing the `Hasher` trait containing the function `digest(&self, plaintext : &str) -> String`. 
-The `digest` function accepts an arbitrary plaintext string and should produce a hex-encoded digest string.
-For example, this hasher accepts any plaintext and produces its equivalent MD5 hash:
+This function accepts an arbitrary plaintext string and should produce a hexidecimal-encoded digest string.
+For example, this example produces the hex encoding of a plaintext's MD5 hash:
 
 ```rust
 use rbtables::prelude::Hasher;
@@ -22,8 +22,8 @@ impl Hasher for MD5Hasher {
 ```
 
 Next, you will need to create a set of reduction function(s) by implementing the `Reducer` trait. 
-You must implement the function `reduce(&self, hash : &str) -> String`, which accepts the output of your hasher and produces another plaintext string.
-A trivial example is a reduction function that takes the first `n` characters from the hexidecimal encoding of the hash.
+You must implement the function `reduce(&self, hash : &str) -> String`, which accepts the output of your hasher and should produce another plaintext string.
+A trivial example involves taking the first `n` characters from the hex encoding of the hash:
 
 ```rust
 use rbtables::prelude::Reducer;
