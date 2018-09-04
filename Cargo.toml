@@ -3,6 +3,9 @@ name = "rbtables"
 version = "0.1.3"
 authors = ["dmhacker <dmhacker@protonmail.com>"]
 description = "Fast & extensible rainbow tables implementation"
+readme = "README.md"
+keywords = ["rainbow", "tables", "hash", "cryptanalysis", "crypto"]
+categories = ["cryptography"]
 license = "MIT"
 
 [dependencies]
