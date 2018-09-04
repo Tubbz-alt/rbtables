@@ -1,15 +1,18 @@
-pub mod structures;
-
 #[macro_use]
 extern crate lazy_static;
+
+// Silences warnings about unused macros
+lazy_static!{}
+
+pub mod prelude;
 
 #[cfg(test)]
 mod tests {
     extern crate md5;
+    extern crate rand;
 
-    use structures::RainbowTable;
-    use structures::Hasher;
-    use structures::Reducer;
+    use prelude::{Hasher, Reducer, RainbowTable};
+    use self::rand::{thread_rng, Rng};
 
     // This hasher performs an MD5 digest
     struct MD5Hasher;
@@ -61,8 +64,24 @@ mod tests {
 
     #[test]
     fn test_rainbow_table_find_random() {
+        // Build out a list of reducers used in the actual table
+        let mut rfs : Vec<SubstringReducer> = Vec::new();
+        let hf = MD5Hasher;
+        for i in 6..27 {
+            rfs.push(SubstringReducer { n : i });
+        }
+
         // Test that the rainbow table can find hashes that appear randomly in the table
-        
+        let mut rng = thread_rng();
+        for _ in 0..1000 {
+            let mut value = format!("{}", rng.gen_range(0, 1000));
+            let reductions = rng.gen_range(1, rfs.len());
+            for i in 0..reductions {
+                value = rfs[i].reduce(&hf.digest(&value[..])[..]); 
+            }
+            let mut hash = hf.digest(&value[..]);
+            assert_eq!(Some(value), TABLE.find_plaintext(&hash));
+        }
     }
 
     #[test]
