@@ -1,55 +1,36 @@
 # rbtables
 
-__rbtables__ is a fast, parallel implementation of [rainbow tables](https://en.wikipedia.org/wiki/Rainbow_table) in Rust. It is intended as an API to support general use cases of rainbow tables. The user will need to supply hashing and reduction functions.
+rbtables is a fast, lightweight, and extensible implementation of [rainbow tables](https://en.wikipedia.org/wiki/Rainbow_table) in Rust. 
+It is intended as an API to support general use cases of rainbow tables. 
+The user will need to supply hashing and reduction functions.
 
 ## Usage
 
-Begin by implementing the `Hasher` trait which contains a single function `digest(&self, plaintext : &str) -> String`. The `Hasher` trait is a wrapper around any hashing function that allows data to be transferred between multiple uses of the `digest` function.
-
-In `lib.rs`, you can see an example of this:
+Begin by implementing the `Hasher` trait containing the function `digest(&self, plaintext : &str) -> String`. 
+The `digest` function accepts an arbitrary plaintext string and should produce a hex-encoded digest string.
+For example, this hasher accepts any plaintext and produces its equivalent MD5 hash:
 
 ```rust
-// Represents a hasher that performs the md5 digest
+use rbtables::prelude::Hasher;
+
 struct MD5Hasher;
-
-impl MD5Hasher {
-
-  fn new() -> MD5Hasher {
-    MD5Hasher
-  }
-
-}
-
 impl Hasher for MD5Hasher {
-
   fn digest(&self, plaintext : &str) -> String {
-    let digest = md5::compute(plaintext.as_bytes());
-    format!("{:x}", digest)
+    format!("{:x}", md5::compute(plaintext.as_bytes()))
   }
-
 }
 ```
 
-Next, implement a set of reduction function(s). To do this, start by implementing the `Reducer` trait. You must implement a single function `reduce(&self, hash : &str) -> String`. The `Reducer` trait is a wrapper around any reduction function, similar to the `Hasher` trait.
-
-In `lib.rs`, you can see an example of this:
+Next, you will need to create a set of reduction function(s) by implementing the `Reducer` trait. 
+You must implement the function `reduce(&self, hash : &str) -> String`, which accepts the output of your hasher and produces another plaintext string.
+A trivial example is a reduction function that takes the first `n` characters from the hexidecimal encoding of the hash.
 
 ```rust
-// Represents a reducer that simply takes the first n characters of a hash to reduce it
+use rbtables::prelude::Reducer;
+
 struct SubstringReducer {
   n: usize
 }
-
-impl SubstringReducer {
-
-  fn new(n : usize) -> SubstringReducer {
-    SubstringReducer {
-      n: n
-    }
-  }
-
-}
-
 impl Reducer for SubstringReducer {
 
   fn reduce(&self, hash : &str) -> String {
@@ -59,4 +40,7 @@ impl Reducer for SubstringReducer {
 }
 ```
 
-See the fn `build_sample_rainbow_table() -> RainbowTable<MD5Hasher, SubstringReducer>` in `lib.rs` for example usage of these traits.
+After that, you can build a rainbow table by supplying the hasher and a vector of reduction functions. 
+The rainbow table will need to be supplied with seed values, which will determine the effectiveness of your table along with the reduction functions. 
+
+See the crates.io documentation for additional information.
